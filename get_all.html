@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+
+	<script type="text/javascript" src="http://cdn-files.deezer.com/js/min/dz-v00202681.js"></script>
+
+
+</head>
+<body>
+
+<style>
+
+	 #suiviCpt { 
+	 	width:80%;
+	 	left:0;
+	 	right:0;
+	 	margin:auto;
+	 	position:absolute;
+	 }
+
+	 #tokenDiv {
+	 	width: 80%;
+  		margin: 0 auto;
+  		text-align:center;
+	 }
+
+	 .inlineB {
+	 	display:inline-block;
+	 }
+
+	 .bigFont{
+		font-size: 30px;
+	 }
+
+	 #finised {
+	 	text-align:center;
+	 }
+
+</style>
+
+
+<div id="suiviCpt" class="inlineB">
+	<div id="tokenDiv">
+		<p>
+			Go to the link below to get the "token". It allow the request to get all informations about albums (like genres).<br/>
+			On the page, click on the button "<b>Get Token</b>" and look that "<u>basic_access</u>" and "<u>manage_library</u>" are checked. Then press "Get Token".<br/>
+			Then copy the string in the input next to the button and past it in the input bellow, then start.<br/><br/>
+
+			<a target="_blank" href="http://developers.deezer.com/api/explorer">Link to get token</a>
+		</p>
+		<input type="text" name="token" id="token" value="" autocomplete="off" style="width:60%">
+		<input type="button" name="buttonStart" value="Start" onclick="startDeezer()">
+	</div>
+
+	<br/><br/>
+
+	<div id="nbActuel" class="inlineB bigFont" style="width:50%;text-align:right;"></div>
+	<div id="nbTotal" class="inlineB bigFont" style="width:40%"></div>
+
+	<br/><br/>
+
+	<div id="finised" style="display:none;padding-top:100px">
+		<b>Done !</b>.<br/>
+		You can open the console (with "CTRL + SHIFT + k" in firefox) and press :<br/><br/>
+		<i>copy(result)</i><br/><br/>
+		It will copy the string with all infos in the clipboard. Then you'll be able to paste where you want.
+	</div>
+</div>
+
+<div id="result" hidden></div>
+
+<script>
+
+	// TODO : fill with the correct id
+	var user_id = "1";
+
+	// the output result
+	var result = "";
+
+	// The counter to know where we are
+	var cpt = 0;
+
+	// The token for the log
+	var token = "";
+
+	// The main function. Because the API is only able to give information 25 albums by 25 albums, we have to call it a lot. 
+	//So we use the "index" param to tell it when we ask for info
+	function callDeezerAPI(index) {
+
+		// Send an ajax request to get all albums of user user_id
+		$.ajax({
+			type: 'GET',
+			url: 'http://api.deezer.com/user/' + user_id + '/albums?output=jsonp&index=' + index + token,
+			dataType: 'jsonp',
+			success: function(list_albums) {
+				
+				// If there is an error, we display it and we stop 
+				if(list_albums.error != null) {
+					alert("There was an error. Pls check console to see error.")
+					console.log(list_albums.error);
+					console.log("stopping with parametter " + index);
+					return null;
+				}
+
+				// We display the total
+				$("#nbTotal").html(" / " + list_albums.total)
+
+				// If there is no error, for each album (not ALL album, because 25 by 25 things), we ask for music style
+				list_albums.data.forEach(function(album, idx, array) {
+				
+					$.ajax({
+						type: 'GET',
+						url: 'http://api.deezer.com/album/' + album.id + "?output=jsonp" + token,
+						dataType: 'jsonp',
+						albumId: album.id,
+						albumLink: album.link,
+						albumArtist: album.artist.name,
+						albumTitle: album.title,
+						albumDate: album.release_date,
+						success: function(album_det) {
+							// We prepare the new line to display it
+							var tmpResult = this.albumId + "\t" + this.albumLink + "\t" + this.albumArtist + "\t" + this.albumTitle + "\t" + this.albumDate;
+							if(album_det.error == null) {
+								// if there is no error, it means there is at least 1 style of music. So we add them
+								album_det.genres.data.forEach(function(curGenre) {
+									tmpResult += "\t" + curGenre.name;
+								})
+							}
+
+							// Add the current row in the final result string
+							result += tmpResult + "\r\n";
+							
+						},
+						error: function(XMLHttpRequest, textStatus, errorThrown) {console.log("failed to get one album");}
+					});
+					
+					
+					// If we are at the last album of the 25, we check if there is more album to check or not.
+					if (idx === array.length - 1){ 
+						cpt+=array.length;
+						var next = list_albums.next;
+						$("#nbActuel").html(cpt);
+						if(next != null) {
+							next = list_albums.next.split("index=")[1];
+							callDeezerAPI(next);
+						} else {
+							$("#result").html(result);
+							$("#finised").show();
+						}
+					}
+				});
+				
+			},
+			error: function(XMLHttpRequest, textStatus, errorThrown) {
+				console.log(XMLHttpRequest);
+				console.log(textStatus);
+				console.log(errorThrown);
+			}
+		});
+	}
+
+
+	function startDeezer() {
+		token = $("#token").val();
+		if(token == "") {
+			alert("Token needed. Pls give a token.")
+		} else {
+			token = "&access_token=" + token;
+			callDeezerAPI(0);
+		}
+	}
+	
+</script><br/>
+</body>
+</html>
